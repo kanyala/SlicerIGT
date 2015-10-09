@@ -46,16 +46,16 @@ class Guidelet(object):
   VIEW_3D = unicode("3D")
   VIEW_DUAL_3D = unicode("Dual 3D")
   
-  def __init__(self, parent, logic, configurationName='Default'):
+  def __init__(self, parent, logic):
     logging.debug('Guidelet.__init__')
     self.parent = parent
     self.logic = logic
-    self.configurationName = configurationName
+    #self.configurationName = configurationName
     self.parameterNodeObserver = None
     self.parameterNode = self.logic.getParameterNode()
     self.layoutManager = slicer.app.layoutManager()
 
-    self.logic.updateParameterNodeFromSettings(self.parameterNode, self.configurationName)
+    self.logic.updateParameterNodeFromSettings(self.parameterNode)
 
     self.setAndObserveParameterNode(self.parameterNode)
 
@@ -268,7 +268,7 @@ class Guidelet(object):
 
   def onSaveDirectoryPreferencesChanged(self):
     sceneSaveDirectory = self.saveDirectoryLineEdit.text
-    self.logic.updateSettings({'SavedScenesDirectory' : sceneSaveDirectory}, self.configurationName)
+    self.logic.updateSettings({'SavedScenesDirectory' : sceneSaveDirectory})
     node = self.logic.getParameterNode()
     self.logic.updateParameterNodeFromUserPreferences(node, {'SavedScenesDirectory' : sceneSaveDirectory})
     

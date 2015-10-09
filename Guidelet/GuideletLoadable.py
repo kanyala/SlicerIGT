@@ -33,7 +33,7 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.guideletInstance = None
     self.guideletLogic = self.createGuideletLogic()
-    self.selectedConfigurationName = 'Default'
+    #self.selectedConfigurationName = 'Default'
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -83,8 +83,9 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
         self.plusServerHostNamePortLineEdit.setText(lnNode.GetParameter('PlusServerHostNamePort'))
     else:
         #self.plusServerHostNamePortLineEdit.setDisabled(False)
-        settings = slicer.app.userSettings()
-        plusServerHostNamePort = settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/PlusServerHostNamePort')
+        #settings = slicer.app.userSettings()
+        #plusServerHostNamePort = settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/PlusServerHostNamePort')
+        plusServerHostNamePort = self.guideletLogic.getSettingsValue('PlusServerHostNamePort')
         self.plusServerHostNamePortLineEdit.setText(plusServerHostNamePort)
 
     self.plusServerHostNamePortLineEdit.connect('editingFinished()', self.onPlusServerPreferencesChanged)
@@ -100,26 +101,31 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
     self.launcherFormLayout.addRow(hBox)
 
     # Populate configurationsComboBox with available configurations
-    settings = slicer.app.userSettings()
-    settings.beginGroup(self.moduleName + '/Configurations')
-    configurations = settings.childGroups()
+#     settings = slicer.app.userSettings()
+#     settings.beginGroup(self.moduleName + '/Configurations')
+#     configurations = settings.childGroups()
+    configurations = self.guideletLogic.readConfigurationsList()
     for configuration in configurations:
       self.configurationsComboBox.addItem(configuration)
-    settings.endGroup()
+    #settings.endGroup()
 
     # Set latest used configuration
-    if settings.value(self.moduleName + '/MostRecentConfiguration'):
-      self.selectedConfigurationName = settings.value(self.moduleName + '/MostRecentConfiguration')
-      idx = self.configurationsComboBox.findText(settings.value(self.moduleName + '/MostRecentConfiguration'))
-      self.configurationsComboBox.setCurrentIndex(idx)
+    #if settings.value(self.moduleName + '/MostRecentConfiguration'):
+    #  self.selectedConfigurationName = settings.value(self.moduleName + '/MostRecentConfiguration')
+    #  idx = self.configurationsComboBox.findText(settings.value(self.moduleName + '/MostRecentConfiguration'))
+    #  self.configurationsComboBox.setCurrentIndex(idx)
+    idx = self.configurationsComboBox.findText(self.guideletLogic.selectedConfigurationName)
+    self.configurationsComboBox.setCurrentIndex(idx)
 
     self.configurationsComboBox.connect('currentIndexChanged(const QString &)', self.onConfigurationChanged)
 
   def onConfigurationChanged(self, selectedConfigurationName):
     self.selectedConfigurationName = selectedConfigurationName
-    settings = slicer.app.userSettings()
-    self.guideletLogic.updateSettings({'MostRecentConfiguration' : self.selectedConfigurationName})
-    plusServerHostNamePort = settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/PlusServerHostNamePort')
+    #settings = slicer.app.userSettings()
+    #self.guideletLogic.updateSettings({'MostRecentConfiguration' : self.selectedConfigurationName})
+    self.guideletLogic.setConfiguration(selectedConfigurationName)
+    #plusServerHostNamePort = settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/PlusServerHostNamePort')
+    plusServerHostNamePort = self.guideletLogic.getSettingsValue('PlusServerHostNamePort')
     self.plusServerHostNamePortLineEdit.setText(plusServerHostNamePort)
 
   def cleanup(self):
@@ -162,24 +168,33 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
 
   def __init__(self, parent = None):
     ScriptedLoadableModuleLogic.__init__(self, parent)
-
     self.setupDefaultConfiguration()
+    self.selectedConfigurationName = self.readMostRecentConfiguration()
+    
 
   def createParameterNode(self):
     node = ScriptedLoadableModuleLogic.createParameterNode(self)
-    self.updateParameterNodeFromSettings(node, 'Default')
+    self.updateParameterNodeFromSettings(node)
     return node
 
   def cleanup(self):
     pass
   
   def setupDefaultConfiguration(self):
+#     settings = slicer.app.userSettings()
+#     settings.beginGroup(self.moduleName + '/Configurations')
+#     childs = settings.childGroups()
+#     settings.endGroup()
+    configList = self.readConfigurationsList()
+    if not 'Default' in configList:
+      self.addValuesToDefaultConfiguration()
+
+  def readConfigurationsList(self):
     settings = slicer.app.userSettings()
     settings.beginGroup(self.moduleName + '/Configurations')
     childs = settings.childGroups()
     settings.endGroup()
-    if not 'Default' in childs:
-      self.addValuesToDefaultConfiguration()
+    return childs
 
   # Adds a default configurations to Slicer.ini
   def addValuesToDefaultConfiguration(self):
@@ -196,25 +211,31 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
                    }
     self.updateSettings(settingList, 'Default')
 
-  def updateUserPreferencesFromParameterNode(self, settingsNameValueMap, paramNode):
-    raise NotImplementedError("not implemented, to-do")
-  
-  def updateParameterNodeFromUserPreferences(self, paramNode, settingsNameValueMap):
-    for name in settingsNameValueMap:
-      paramNode.SetParameter(name, settingsNameValueMap[name])
-  
-  def updateParameterNodeFromSettings(self, paramNode, configurationName):
+  def setConfiguration(self, selectedConfigurationName):
+    self.selectedConfigurationName = selectedConfigurationName
+    self.writeMostRecentConfiguration(self.selectedConfigurationName)
+
+  def writeMostRecentConfiguration(self, configurationName):
     settings = slicer.app.userSettings()
-    settings.beginGroup(self.moduleName + '/Configurations/' + configurationName)
-    keys = settings.allKeys()
-    for key in keys:
-      paramNode.SetParameter(key, settings.value(key))
+    settings.beginGroup(self.moduleName)
+    settings.setValue('MostRecentConfiguration', configurationName)
     settings.endGroup()
+
+  def readMostRecentConfiguration(self):
+    recentConfigurationName = 'Default'
+    settings = slicer.app.userSettings()    
+    if settings.value(self.moduleName + '/MostRecentConfiguration'):
+      recentConfigurationName = settings.value(self.moduleName + '/MostRecentConfiguration')
+    return recentConfigurationName
+    
+  def getSettingsValue(self, settingsName):
+    settings = slicer.app.userSettings()
+    return settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/' + settingsName)
   
   def updateSettings(self, settingsNameValueMap, configurationName = None):#updateSettingsFromUserPreferences
     settings = slicer.app.userSettings()
     if not configurationName:
-      groupString = self.moduleName
+      groupString = self.moduleName + '/Configurations/' + self.selectedConfigurationName
     else:
       groupString = self.moduleName + '/Configurations/' + configurationName
     
@@ -223,20 +244,35 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
       settings.setValue(name, settingsNameValueMap[name])
     settings.endGroup()
 
-  def writeTransformToSettings(self, transformName, transformMatrix, configurationName):
+  def updateUserPreferencesFromParameterNode(self, settingsNameValueMap, paramNode):
+    raise NotImplementedError("not implemented, to-do")
+  
+  def updateParameterNodeFromUserPreferences(self, paramNode, settingsNameValueMap):
+    for name in settingsNameValueMap:
+      paramNode.SetParameter(name, settingsNameValueMap[name])
+  
+  def updateParameterNodeFromSettings(self, paramNode):
+    settings = slicer.app.userSettings()
+    settings.beginGroup(self.moduleName + '/Configurations/' + self.selectedConfigurationName)
+    keys = settings.allKeys()
+    for key in keys:
+      paramNode.SetParameter(key, settings.value(key))
+    settings.endGroup()
+
+  def writeTransformToSettings(self, transformName, transformMatrix):
     transformMatrixArray = []
     for r in xrange(4):
       for c in xrange(4):
         transformMatrixArray.append(transformMatrix.GetElement(r,c))
     transformMatrixString = ' '.join(map(str, transformMatrixArray)) # string, numbers are separated by spaces
     settings = slicer.app.userSettings()
-    settingString = self.moduleName + '/Configurations/' + configurationName + '/{0}' # Write to selected configuration
+    settingString = self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/{0}' # Write to selected configuration
     settings.setValue(settingString.format(transformName), transformMatrixString)
     
-  def readTransformFromSettings(self, transformName, configurationName):
+  def readTransformFromSettings(self, transformName):
     transformMatrix = vtk.vtkMatrix4x4()
     settings = slicer.app.userSettings()
-    settingString = self.moduleName + '/Configurations/' + configurationName + '/{0}' # Read from selected configuration
+    settingString = self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/{0}' # Read from selected configuration
     transformMatrixString = settings.value(settingString.format(transformName))
     if not transformMatrixString: 
       settingString = self.moduleName + '/Configurations/Default/{0}' # Read from default configuration
