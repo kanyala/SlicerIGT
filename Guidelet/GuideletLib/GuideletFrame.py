@@ -50,7 +50,6 @@ class Guidelet(object):
     logging.debug('Guidelet.__init__')
     self.parent = parent
     self.logic = logic
-    #self.configurationName = configurationName
     self.parameterNodeObserver = None
     self.parameterNode = self.logic.getParameterNode()
     self.layoutManager = slicer.app.layoutManager()

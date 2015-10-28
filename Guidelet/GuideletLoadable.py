@@ -33,7 +33,6 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
     ScriptedLoadableModuleWidget.__init__(self, parent)
     self.guideletInstance = None
     self.guideletLogic = self.createGuideletLogic()
-    #self.selectedConfigurationName = 'Default'
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -82,9 +81,6 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
         self.plusServerHostNamePortLineEdit.setDisabled(True)
         self.plusServerHostNamePortLineEdit.setText(lnNode.GetParameter('PlusServerHostNamePort'))
     else:
-        #self.plusServerHostNamePortLineEdit.setDisabled(False)
-        #settings = slicer.app.userSettings()
-        #plusServerHostNamePort = settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/PlusServerHostNamePort')
         plusServerHostNamePort = self.guideletLogic.getSettingsValue('PlusServerHostNamePort')
         self.plusServerHostNamePortLineEdit.setText(plusServerHostNamePort)
 
@@ -101,30 +97,16 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
     self.launcherFormLayout.addRow(hBox)
 
     # Populate configurationsComboBox with available configurations
-#     settings = slicer.app.userSettings()
-#     settings.beginGroup(self.moduleName + '/Configurations')
-#     configurations = settings.childGroups()
     configurations = self.guideletLogic.readConfigurationsList()
     for configuration in configurations:
       self.configurationsComboBox.addItem(configuration)
-    #settings.endGroup()
-
-    # Set latest used configuration
-    #if settings.value(self.moduleName + '/MostRecentConfiguration'):
-    #  self.selectedConfigurationName = settings.value(self.moduleName + '/MostRecentConfiguration')
-    #  idx = self.configurationsComboBox.findText(settings.value(self.moduleName + '/MostRecentConfiguration'))
-    #  self.configurationsComboBox.setCurrentIndex(idx)
     idx = self.configurationsComboBox.findText(self.guideletLogic.selectedConfigurationName)
     self.configurationsComboBox.setCurrentIndex(idx)
 
     self.configurationsComboBox.connect('currentIndexChanged(const QString &)', self.onConfigurationChanged)
 
   def onConfigurationChanged(self, selectedConfigurationName):
-    self.selectedConfigurationName = selectedConfigurationName
-    #settings = slicer.app.userSettings()
-    #self.guideletLogic.updateSettings({'MostRecentConfiguration' : self.selectedConfigurationName})
     self.guideletLogic.setConfiguration(selectedConfigurationName)
-    #plusServerHostNamePort = settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/PlusServerHostNamePort')
     plusServerHostNamePort = self.guideletLogic.getSettingsValue('PlusServerHostNamePort')
     self.plusServerHostNamePortLineEdit.setText(plusServerHostNamePort)
 
@@ -144,7 +126,7 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
     self.guideletInstance.showFullScreen()
 
   def onPlusServerPreferencesChanged(self):
-    self.guideletLogic.updateSettings({'PlusServerHostNamePort' : self.plusServerHostNamePortLineEdit.text}, self.selectedConfigurationName)
+    self.guideletLogic.updateSettings({'PlusServerHostNamePort' : self.plusServerHostNamePortLineEdit.text})
 
   def createGuideletInstance(self):
     raise NotImplementedError("Abstract method must be overridden!")
@@ -181,10 +163,6 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
     pass
   
   def setupDefaultConfiguration(self):
-#     settings = slicer.app.userSettings()
-#     settings.beginGroup(self.moduleName + '/Configurations')
-#     childs = settings.childGroups()
-#     settings.endGroup()
     configList = self.readConfigurationsList()
     if not 'Default' in configList:
       self.addValuesToDefaultConfiguration()
