@@ -12,6 +12,7 @@ class PlusRemote(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Plus Remote"
     self.parent.categories = ["IGT"]
+    self.parent.dependencies = ["OpenIGTLinkRemote"]
     self.parent.contributors = ["Amelie Meyer (PerkLab, Queen's University), Franklin King (PerkLab, Queen's University), Tamas Ungi (PerkLab, Queen's University), Andras Lasso (PerkLab, Queen's University)"]
     self.parent.helpText = """This is a convenience module for sending commands a <a href="www.plustoolkit.org">PLUS server</a> for recording data and reconstruction of 3D volumes from tracked 2D image slices."""
     self.parent.acknowledgementText = """This work was funded by Cancer Care Ontario Applied Cancer Research Unit (ACRU) and the Ontario Consortium for Adaptive Interventions in Radiation Oncology (OCAIRO) grants."""
@@ -956,7 +957,7 @@ class PlusRemoteWidget(ScriptedLoadableModuleWidget):
 # Commands
 #
   def onStartRecording(self):
-    self.logic.startRecording(self.linkInputSelector.currentNode().GetID(), self.captureIDSelector.currentText, self.generateRecordingOutputFilename(), str(self.enableCompressionBox.checked), self.printCommandResponse)
+    self.logic.startRecording(self.linkInputSelector.currentNode().GetID(), self.captureIDSelector.currentText, self.generateRecordingOutputFilename(), self.enableCompressionBox.checked, self.printCommandResponse)
 
   def onStopRecording(self):
     self.logic.stopRecording(self.linkInputSelector.currentNode().GetID(), self.captureIDSelector.currentText, self.onVolumeRecorded)
@@ -1480,7 +1481,7 @@ class PlusRemoteLogic(ScriptedLoadableModuleLogic):
   def startRecording(self, connectorNodeId, captureName, fileName, compression, responseCallbackMethod):
     self.cmdStartRecording.SetCommandAttribute('CaptureDeviceId', captureName)
     self.cmdStartRecording.SetCommandAttribute('OutputFilename', fileName)
-    self.cmdStartRecording.SetCommandAttribute('EnableCompression', compression)
+    self.cmdStartRecording.SetCommandAttribute('EnableCompression', str(compression))
     self.executeCommand(self.cmdStartRecording, connectorNodeId, responseCallbackMethod)
 
   def stopRecording(self, connectorNodeId, captureName, responseCallbackMethod):

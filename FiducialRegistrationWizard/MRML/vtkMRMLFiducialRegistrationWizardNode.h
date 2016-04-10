@@ -84,11 +84,16 @@ public:
   vtkMRMLTransformNode* GetOutputTransformNode();
   void SetOutputTransformNodeId( const char* nodeId );
 
-  vtkMRMLTransformNode* GetProbeTransformNode();
-  void SetProbeTransformNodeId( const char* nodeId );
+  vtkMRMLTransformNode* GetProbeTransformFromNode();
+  void SetProbeTransformFromNodeId( const char* nodeId );
+  vtkMRMLTransformNode* GetProbeTransformToNode();
+  void SetProbeTransformToNodeId( const char* nodeId );
 
   std::string GetRegistrationMode();
   void SetRegistrationMode( std::string newRegistrationMode);
+  void SetRegistrationModeToRigid() { this->SetRegistrationMode("Rigid"); };
+  void SetRegistrationModeToSimilarity() { this->SetRegistrationMode("Similarity"); };
+  void SetRegistrationModeToWarping() { this->SetRegistrationMode("Warping"); };
 
   std::string GetUpdateMode();
   void SetUpdateMode( std::string newUpdateMode);

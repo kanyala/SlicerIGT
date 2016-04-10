@@ -61,6 +61,7 @@ public:
   void PrintSelf(ostream& os, vtkIndent indent);
   
   void AddFiducial( vtkMRMLLinearTransformNode* probeTransformNode );
+  void AddFiducial( vtkMRMLLinearTransformNode* probeTransformNode, vtkMRMLMarkupsFiducialNode* fiducialNode );
 
   void ProcessMRMLNodesEvents( vtkObject* caller, unsigned long event, void* callData );
   //void ProcessMRMLSceneEvents( vtkObject* caller, unsigned long event, void* callData );
@@ -87,7 +88,7 @@ private:
   vtkSlicerFiducialRegistrationWizardLogic(const vtkSlicerFiducialRegistrationWizardLogic&); // Not implemented
   void operator=(const vtkSlicerFiducialRegistrationWizardLogic&);               // Not implemented
 
-  double CalculateRegistrationError( vtkPoints* fromPoints, vtkPoints* toPoints, vtkLinearTransform* transform );
+  double CalculateRegistrationError( vtkPoints* fromPoints, vtkPoints* toPoints, vtkAbstractTransform* transform );
   bool CheckCollinear( vtkPoints* points );
 
   std::map< std::string, std::string > OutputMessages;

@@ -15,7 +15,7 @@ class GuideletLoadable(ScriptedLoadableModule):
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Guidelet"
-    self.parent.categories = ["Guidelet"] 
+    self.parent.categories = ["Guidelet"]
     self.parent.dependencies = []
     self.parent.contributors = [""]
 
@@ -116,7 +116,7 @@ class GuideletWidget(ScriptedLoadableModuleWidget):
       self.guideletLogic.cleanup()
     if self.guideletInstance:
       self.guideletInstance.cleanup()
-   
+
   def onLaunchGuideletButtonClicked(self):
     logging.debug('onLaunchGuideletButtonClicked')
 
@@ -161,7 +161,7 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
 
   def cleanup(self):
     pass
-  
+
   def setupDefaultConfiguration(self):
     configList = self.readConfigurationsList()
     if not 'Default' in configList:
@@ -178,7 +178,7 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
   def addValuesToDefaultConfiguration(self):
     moduleDir = os.path.dirname(__file__)
     defaultSavePath = os.path.join(moduleDir, 'SavedScenes')
-    
+
     settingList = {'StyleSheet' : 'DefaultStyle.qss',
                    'LiveUltrasoundNodeName' : 'Image_Reference',
                    'LiveUltrasoundNodeName_Needle' : 'Image_Needle',
@@ -209,14 +209,14 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
   def getSettingsValue(self, settingsName):
     settings = slicer.app.userSettings()
     return settings.value(self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/' + settingsName)
-  
+
   def updateSettings(self, settingsNameValueMap, configurationName = None):#updateSettingsFromUserPreferences
     settings = slicer.app.userSettings()
     if not configurationName:
       groupString = self.moduleName + '/Configurations/' + self.selectedConfigurationName
     else:
       groupString = self.moduleName + '/Configurations/' + configurationName
-    
+
     settings.beginGroup(groupString)
     for name in settingsNameValueMap:
       settings.setValue(name, settingsNameValueMap[name])
@@ -246,25 +246,29 @@ class GuideletLogic(ScriptedLoadableModuleLogic):
     settings = slicer.app.userSettings()
     settingString = self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/{0}' # Write to selected configuration
     settings.setValue(settingString.format(transformName), transformMatrixString)
-    
-  def readTransformFromSettings(self, transformName):
+
+  def createMatrixFromString(self, transformMatrixString):
     transformMatrix = vtk.vtkMatrix4x4()
-    settings = slicer.app.userSettings()
-    settingString = self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/{0}' # Read from selected configuration
-    transformMatrixString = settings.value(settingString.format(transformName))
-    if not transformMatrixString: 
-      settingString = self.moduleName + '/Configurations/Default/{0}' # Read from default configuration
-      transformMatrixString = settings.value(settingString.format(transformName))
-      if not transformMatrixString: 
-        return None
     transformMatrixArray = map(float, transformMatrixString.split(' '))
     for r in xrange(4):
       for c in xrange(4):
         transformMatrix.SetElement(r,c, transformMatrixArray[r*4+c])
     return transformMatrix
 
+  def readTransformFromSettings(self, transformName):
+    transformMatrix = vtk.vtkMatrix4x4()
+    settings = slicer.app.userSettings()
+    settingString = self.moduleName + '/Configurations/' + self.selectedConfigurationName + '/{0}' # Read from selected configuration
+    transformMatrixString = settings.value(settingString.format(transformName))
+    if not transformMatrixString:
+      settingString = self.moduleName + '/Configurations/Default/{0}' # Read from default configuration
+      transformMatrixString = settings.value(settingString.format(transformName))
+      if not transformMatrixString:
+        return None
+    return self.createMatrixFromString(transformMatrixString)
+
 #
-#	GuideletTest
+# GuideletTest
 #
 
 class GuideletTest(ScriptedLoadableModuleTest):

@@ -28,14 +28,15 @@
 #include "vtkMRMLScene.h"
 
 // VTK includes
+#include <vtkDoubleArray.h>
+#include <vtkMath.h>
 #include <vtkMatrix4x4.h>
 #include <vtkNew.h>
-#include <vtkSmartPointer.h>
-#include <vtkMath.h>
-#include <vtkDoubleArray.h>
-#include <vtkTable.h>
-#include <vtkPCAStatistics.h>
 #include <vtkObjectFactory.h>
+#include <vtkPCAStatistics.h>
+#include <vtkSmartPointer.h>
+#include <vtkTable.h>
+#include <vtkThinPlateSplineTransform.h>
 
 // STD includes
 #include <cassert>
@@ -176,11 +177,28 @@ void vtkSlicerFiducialRegistrationWizardLogic::AddFiducial( vtkMRMLLinearTransfo
     return;
   }
   
+  this->AddFiducial(probeTransformNode, activeMarkupsFiducialNode);
+}
+
+//------------------------------------------------------------------------------
+void vtkSlicerFiducialRegistrationWizardLogic::AddFiducial( vtkMRMLLinearTransformNode* probeTransformNode, vtkMRMLMarkupsFiducialNode* fiducialNode )
+{
+  if ( probeTransformNode == NULL )
+  {
+    vtkErrorMacro("vtkSlicerFiducialRegistrationWizardLogic::AddFiducial failed: input transform is invalid");
+    return;
+  }
+  if ( fiducialNode == NULL )
+  {
+    vtkErrorMacro("vtkSlicerFiducialRegistrationWizardLogic::AddFiducial failed: output fiducial node is invalid");
+    return;
+  }
+  
   vtkSmartPointer<vtkMatrix4x4> transformToWorld = vtkSmartPointer<vtkMatrix4x4>::New();
   probeTransformNode->GetMatrixTransformToWorld( transformToWorld );
 
   double coord[3] = { transformToWorld->GetElement( 0, 3 ), transformToWorld->GetElement( 1, 3 ), transformToWorld->GetElement( 2, 3 ) };
-  activeMarkupsFiducialNode->AddFiducialFromArray( coord );
+  fiducialNode->AddFiducialFromArray( coord );
 }
 
 //------------------------------------------------------------------------------
@@ -236,54 +254,85 @@ void vtkSlicerFiducialRegistrationWizardLogic::UpdateCalibration( vtkMRMLNode* n
   }
 
   // Convert the markupsfiducial nodes into vector of itk points
-  vtkSmartPointer<vtkPoints> fromPoints = vtkSmartPointer<vtkPoints>::New();
-  vtkSmartPointer<vtkPoints> toPoints = vtkSmartPointer<vtkPoints>::New();
-  MarkupsFiducialNodeToVTKPoints( fromMarkupsFiducialNode, fromPoints );
-  MarkupsFiducialNodeToVTKPoints( toMarkupsFiducialNode, toPoints );
+  vtkNew<vtkPoints> fromPoints;
+  vtkNew<vtkPoints> toPoints;
+  MarkupsFiducialNodeToVTKPoints( fromMarkupsFiducialNode, fromPoints.GetPointer() );
+  MarkupsFiducialNodeToVTKPoints( toMarkupsFiducialNode, toPoints.GetPointer() );
 
-  if ( this->CheckCollinear( fromPoints ) )
+  if ( this->CheckCollinear( fromPoints.GetPointer() ) )
   {
     fiducialRegistrationWizardNode->SetCalibrationStatusMessage("'From' fiducial list has strictly collinear points.");
     return;
   }
 
-  if ( this->CheckCollinear( toPoints ) )
+  if ( this->CheckCollinear( toPoints.GetPointer() ) )
   {
     fiducialRegistrationWizardNode->SetCalibrationStatusMessage("'To' fiducial list has strictly collinear points.");
     return;
   }
 
-  // Setup the registration
-  vtkSmartPointer<vtkLandmarkTransform> transform = vtkSmartPointer<vtkLandmarkTransform>::New();
+  vtkSmartPointer<vtkAbstractTransform> transform;
 
-  transform->SetSourceLandmarks( fromPoints );
-  transform->SetTargetLandmarks( toPoints );
-
-  if ( transformType.compare( "Similarity" ) == 0 )
+  if ( transformType.compare( "Rigid" ) == 0 || transformType.compare( "Similarity" ) == 0 )
   {
-    transform->SetModeToSimilarity();
+    // Setup the registration
+    vtkLandmarkTransform* landmarkTransform = vtkLandmarkTransform::New();
+    transform = vtkSmartPointer<vtkAbstractTransform>::Take(landmarkTransform);
+
+    landmarkTransform->SetSourceLandmarks( fromPoints.GetPointer() );
+    landmarkTransform->SetTargetLandmarks( toPoints.GetPointer() );
+    
+    if ( transformType.compare( "Rigid" ) == 0 )
+    {
+      landmarkTransform->SetModeToRigidBody();
+    }
+    else
+    {
+      landmarkTransform->SetModeToSimilarity();
+    }
+
+    landmarkTransform->Update();
+
+    // Copy the resulting transform into the outputTransform
+    vtkNew<vtkMatrix4x4> calculatedTransform;
+    landmarkTransform->GetMatrix( calculatedTransform.GetPointer() );
+    outputTransform->SetMatrixTransformToParent( calculatedTransform.GetPointer() );
+  }
+  else if ( transformType.compare( "Warping" ) == 0 )
+  {
+    if (strcmp(outputTransform->GetClassName(), "vtkMRMLTransformNode") != 0)
+    {
+      vtkErrorMacro("vtkSlicerFiducialRegistrationWizardLogic::UpdateCalibration failed to save vtkThinPlateSplineTransform into transform node type "<<outputTransform->GetClassName());
+      fiducialRegistrationWizardNode->SetCalibrationStatusMessage("Warping transform cannot be stored\nin linear transform node" );
+      return;
+    }
+
+    // Setup the registration
+    vtkThinPlateSplineTransform* tpsTransform = vtkThinPlateSplineTransform::New();
+    transform = vtkSmartPointer<vtkAbstractTransform>::Take(tpsTransform);
+
+    tpsTransform->SetSourceLandmarks( fromPoints.GetPointer() );
+    tpsTransform->SetTargetLandmarks( toPoints.GetPointer() );
+    tpsTransform->Update();
+
+    // Set the resulting transform into the outputTransform
+    outputTransform->SetAndObserveTransformToParent( tpsTransform );
   }
   else
   {
-    transform->SetModeToRigidBody();
+    vtkErrorMacro("vtkSlicerFiducialRegistrationWizardLogic::UpdateCalibration failed to set transform type: invalid transform type: "<<transformType);
+    fiducialRegistrationWizardNode->SetCalibrationStatusMessage("Invalid transform type." );
+    return;
   }
 
-  transform->Update();
-
-  // Copy the resulting transform into the outputTransform
-  vtkSmartPointer<vtkMatrix4x4> calculatedTransform = vtkSmartPointer<vtkMatrix4x4>::New();
-  transform->GetMatrix( calculatedTransform );
-  outputTransform->SetMatrixTransformToParent( calculatedTransform );
-
-  double rmsError = this->CalculateRegistrationError( fromPoints,toPoints, transform );
-
+  double rmsError = this->CalculateRegistrationError( fromPoints.GetPointer(), toPoints.GetPointer(), transform );
   std::stringstream successMessage;
   successMessage << "Success! RMS Error: " << rmsError;
   fiducialRegistrationWizardNode->SetCalibrationStatusMessage(successMessage.str());
 }
 
 //------------------------------------------------------------------------------
-double vtkSlicerFiducialRegistrationWizardLogic::CalculateRegistrationError( vtkPoints* fromPoints, vtkPoints* toPoints, vtkLinearTransform* transform )
+double vtkSlicerFiducialRegistrationWizardLogic::CalculateRegistrationError( vtkPoints* fromPoints, vtkPoints* toPoints, vtkAbstractTransform* transform )
 {
   // Transform the from points
   vtkSmartPointer<vtkPoints> transformedFromPoints = vtkSmartPointer<vtkPoints>::New();

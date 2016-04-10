@@ -24,15 +24,16 @@ class vtkMRMLWatchdogNode::vtkInternal
 public:
   vtkInternal();
 
-  struct WatchedNode
+  struct WatchedNodeInfo
   {
+    vtkWeakPointer<vtkMRMLNode> watchedNode; // it is only used for determining which item to remove when deleting a watched node
     std::string warningMessage;
     double lastUpdateTimeSec; // time of the last update in universal time (UTC)
     double updateTimeToleranceSec; // if no update is received for more than the tolerance value then the tool is reported as invalid
     bool playSound;
     bool lastStateUpToDate; // true if the state was valid at the last update
 
-    WatchedNode()
+    WatchedNodeInfo()
     {
       lastUpdateTimeSec=vtkTimerLog::GetUniversalTime();
       playSound=false;
@@ -41,7 +42,7 @@ public:
     }
   };
 
-  std::vector< WatchedNode > WatchedNodes;
+  std::vector< WatchedNodeInfo > WatchedNodes;
 };
 
 vtkMRMLWatchdogNode::vtkInternal::vtkInternal()
@@ -77,7 +78,7 @@ void vtkMRMLWatchdogNode::WriteXML( ostream& of, int nIndent )
   std::ostringstream warningMessagesAttribute;
   std::ostringstream playSoundAttribute;
   std::ostringstream updateTimeToleranceSecAttribute;
-  for (std::vector<vtkMRMLWatchdogNode::vtkInternal::WatchedNode>::iterator
+  for (std::vector<vtkMRMLWatchdogNode::vtkInternal::WatchedNodeInfo>::iterator
     it = this->Internal->WatchedNodes.begin(); it != this->Internal->WatchedNodes.end(); ++it)
   {
     if (it != this->Internal->WatchedNodes.begin())
@@ -171,7 +172,7 @@ void vtkMRMLWatchdogNode::PrintSelf( ostream& os, vtkIndent indent )
   vtkMRMLNode::PrintSelf(os,indent); // This will take care of referenced nodes
 
   int watchedNodeIndex=0;
-  for (std::vector<vtkMRMLWatchdogNode::vtkInternal::WatchedNode>::iterator
+  for (std::vector<vtkMRMLWatchdogNode::vtkInternal::WatchedNodeInfo>::iterator
     it = this->Internal->WatchedNodes.begin(); it != this->Internal->WatchedNodes.end(); ++it)
   {
     os << indent << "Referenced node ["<<watchedNodeIndex<<"]" << std::endl;
@@ -194,7 +195,7 @@ int vtkMRMLWatchdogNode::AddWatchedNode(vtkMRMLNode *watchedNode, const char* wa
     return -1;
   }
 
-  vtkMRMLWatchdogNode::vtkInternal::WatchedNode newWatchedNodeInfo;
+  vtkMRMLWatchdogNode::vtkInternal::WatchedNodeInfo newWatchedNodeInfo;
 
   if (warningMessage)
   {
@@ -216,6 +217,8 @@ int vtkMRMLWatchdogNode::AddWatchedNode(vtkMRMLNode *watchedNode, const char* wa
 
   newWatchedNodeInfo.playSound = playSound;
 
+  newWatchedNodeInfo.watchedNode = watchedNode;
+
   this->Internal->WatchedNodes.push_back(newWatchedNodeInfo);
   int newNodeIndex = this->Internal->WatchedNodes.size()-1;
 
@@ -227,7 +230,7 @@ int vtkMRMLWatchdogNode::AddWatchedNode(vtkMRMLNode *watchedNode, const char* wa
 //----------------------------------------------------------------------------
 void vtkMRMLWatchdogNode::RemoveWatchedNode(int watchedNodeIndex)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::RemoveWatchedNode failed: invalid index "<<watchedNodeIndex);
     return;
@@ -251,7 +254,7 @@ int vtkMRMLWatchdogNode::GetWatchedNodeIndex(vtkMRMLNode* watchedNode)
     vtkErrorMacro("vtkMRMLWatchdogNode::GetWatchedNodeIndex: invalid input node");
     return -1;
   }
-  int numberOfWatchedNodes = this->GetNumberOfNodeReferences(WATCHED_NODE_REFERENCE_ROLE_NAME);
+  unsigned int numberOfWatchedNodes = this->GetNumberOfNodeReferences(WATCHED_NODE_REFERENCE_ROLE_NAME);
   for (unsigned int watchedNodeIndex=0; watchedNodeIndex<numberOfWatchedNodes; watchedNodeIndex++)
   {
     vtkMRMLNode* watchedNodeFound = this->GetNthNodeReference(WATCHED_NODE_REFERENCE_ROLE_NAME, watchedNodeIndex);
@@ -268,7 +271,7 @@ int vtkMRMLWatchdogNode::GetWatchedNodeIndex(vtkMRMLNode* watchedNode)
 //----------------------------------------------------------------------------
 vtkMRMLNode* vtkMRMLWatchdogNode::GetWatchedNode(int watchedNodeIndex)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::GetWatchedNode failed: invalid index "<<watchedNodeIndex);
     return NULL;
@@ -285,7 +288,7 @@ int vtkMRMLWatchdogNode::GetNumberOfWatchedNodes()
 //----------------------------------------------------------------------------
 const char* vtkMRMLWatchdogNode::GetWatchedNodeWarningMessage(int watchedNodeIndex)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::GetWatchedNodeWarningMessage failed: invalid index "<<watchedNodeIndex);
     return NULL;
@@ -296,7 +299,7 @@ const char* vtkMRMLWatchdogNode::GetWatchedNodeWarningMessage(int watchedNodeInd
 //----------------------------------------------------------------------------
 void vtkMRMLWatchdogNode::SetWatchedNodeWarningMessage(int watchedNodeIndex, const char* warningMessage)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::WarningMessage failed: invalid index "<<watchedNodeIndex);
     return;
@@ -314,7 +317,7 @@ void vtkMRMLWatchdogNode::SetWatchedNodeWarningMessage(int watchedNodeIndex, con
 //---------------------------------------------------------------------------- 
 double vtkMRMLWatchdogNode::GetWatchedNodeUpdateTimeToleranceSec(int watchedNodeIndex)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::GetWatchedNodeUpdateTimeToleranceSec failed: invalid index "<<watchedNodeIndex);
     return 0.0;
@@ -325,7 +328,7 @@ double vtkMRMLWatchdogNode::GetWatchedNodeUpdateTimeToleranceSec(int watchedNode
 //----------------------------------------------------------------------------
 void vtkMRMLWatchdogNode::SetWatchedNodeUpdateTimeToleranceSec(int watchedNodeIndex, double updateTimeToleranceSec)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::SetWatchedNodeUpdateTimeToleranceSec failed: invalid index "<<watchedNodeIndex);
     return;
@@ -342,7 +345,7 @@ void vtkMRMLWatchdogNode::SetWatchedNodeUpdateTimeToleranceSec(int watchedNodeIn
 //----------------------------------------------------------------------------
 bool vtkMRMLWatchdogNode::GetWatchedNodeUpToDate(int watchedNodeIndex)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::GetWatchedNodeUpToDate failed: invalid index "<<watchedNodeIndex);
     return true;
@@ -353,7 +356,7 @@ bool vtkMRMLWatchdogNode::GetWatchedNodeUpToDate(int watchedNodeIndex)
 //----------------------------------------------------------------------------
 double vtkMRMLWatchdogNode::GetWatchedNodeElapsedTimeSinceLastUpdateSec(int watchedNodeIndex)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::GetWatchedNodeElapsedTimeSinceLastUpdateSec failed: invalid index "<<watchedNodeIndex);
     return 0;
@@ -364,7 +367,7 @@ double vtkMRMLWatchdogNode::GetWatchedNodeElapsedTimeSinceLastUpdateSec(int watc
 //----------------------------------------------------------------------------
 bool vtkMRMLWatchdogNode::GetWatchedNodePlaySound(int watchedNodeIndex)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::GetWatchedNodePlaySound failed: invalid index "<<watchedNodeIndex);
     return 0.0;
@@ -375,7 +378,7 @@ bool vtkMRMLWatchdogNode::GetWatchedNodePlaySound(int watchedNodeIndex)
 //----------------------------------------------------------------------------
 void vtkMRMLWatchdogNode::SetWatchedNodePlaySound(int watchedNodeIndex, bool playSound)
 {
-  if(watchedNodeIndex<0 || watchedNodeIndex>=this->Internal->WatchedNodes.size())
+  if(watchedNodeIndex<0 || static_cast<unsigned int>(watchedNodeIndex)>=this->Internal->WatchedNodes.size())
   {
     vtkErrorMacro("vtkMRMLWatchdogNode::SetWatchedNodePlaySound failed: invalid index "<<watchedNodeIndex);
     return;
@@ -397,7 +400,7 @@ void vtkMRMLWatchdogNode::ProcessMRMLEvents ( vtkObject *caller, unsigned long e
   vtkMRMLNode* callerNode = vtkMRMLNode::SafeDownCast(caller);
   if (callerNode!=NULL)
   {
-    int numberOfWatchedNodes = this->GetNumberOfNodeReferences(WATCHED_NODE_REFERENCE_ROLE_NAME);
+    unsigned int numberOfWatchedNodes = this->GetNumberOfNodeReferences(WATCHED_NODE_REFERENCE_ROLE_NAME);
     for (unsigned int watchedNodeIndex=0; watchedNodeIndex<numberOfWatchedNodes; watchedNodeIndex++)
     {
       vtkMRMLNode* watchedNode = this->GetNthNodeReference(WATCHED_NODE_REFERENCE_ROLE_NAME, watchedNodeIndex);
@@ -423,7 +426,7 @@ void vtkMRMLWatchdogNode::UpdateWatchedNodesStatus(bool &watchedNodeBecomeUpToDa
 {
   bool watchedToolStateModified = false;
   double currentTimeSec = vtkTimerLog::GetUniversalTime();
-  for (std::vector<vtkMRMLWatchdogNode::vtkInternal::WatchedNode>::iterator
+  for (std::vector<vtkMRMLWatchdogNode::vtkInternal::WatchedNodeInfo>::iterator
     it = this->Internal->WatchedNodes.begin(); it != this->Internal->WatchedNodes.end(); ++it)
   {
     double elapsedTimeSec = currentTimeSec - it->lastUpdateTimeSec;
@@ -449,4 +452,23 @@ void vtkMRMLWatchdogNode::UpdateWatchedNodesStatus(bool &watchedNodeBecomeUpToDa
   {
     this->Modified();
   }
+}
+
+//----------------------------------------------------------------------------
+void vtkMRMLWatchdogNode::OnNodeReferenceRemoved(vtkMRMLNodeReference *reference)
+{
+  if (std::string(reference->GetReferenceRole()) == WATCHED_NODE_REFERENCE_ROLE_NAME)
+  {
+    // A watched node is deleted from the scene. Remove the corresponding item from the list.
+    std::vector<vtkMRMLWatchdogNode::vtkInternal::WatchedNodeInfo>::iterator it = this->Internal->WatchedNodes.begin();
+    for (; it != this->Internal->WatchedNodes.end(); ++it)
+    {
+      if (it->watchedNode == reference->GetReferencedNode())
+      {
+        this->Internal->WatchedNodes.erase(it);
+        break;
+      }
+    }
+  }
+  this->Superclass::OnNodeReferenceRemoved(reference);
 }

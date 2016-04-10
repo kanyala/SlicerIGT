@@ -57,6 +57,8 @@ void qSlicerOpenIGTLinkRemoteCommandWidget::setup()
   Q_D(qSlicerOpenIGTLinkRemoteCommandWidget);
   d->setupUi(this);
 
+  d->ShowFullResponseCheckBox->setChecked(false);
+
   connect( d->SendCommandButton, SIGNAL( clicked() ), this, SLOT( OnSendCommandClicked() ) );
   qvtkConnect(d->command, vtkSlicerOpenIGTLinkCommand::CommandCompletedEvent, this, SLOT(onQueryResponseReceived()));
 }
@@ -93,7 +95,14 @@ qSlicerOpenIGTLinkRemoteCommandWidget::~qSlicerOpenIGTLinkRemoteCommandWidget()
 void qSlicerOpenIGTLinkRemoteCommandWidget::OnSendCommandClicked()
 {
   Q_D(qSlicerOpenIGTLinkRemoteCommandWidget);
-  
+
+  // Cancel previous command if it was already in progress
+  if (d->command->GetStatus() == vtkSlicerOpenIGTLinkCommand::CommandWaiting)
+  {
+    qDebug("qSlicerOpenIGTLinkRemoteCommandWidgetPrivate::sendCommand: previous command was already in progress, cancel it now");
+    d->logic()->CancelCommand( d->command);
+  }
+
   vtkMRMLNode* connectorNode = d->ConnectorComboBox->currentNode();
   if ( connectorNode == NULL )
   {
@@ -140,26 +149,28 @@ void qSlicerOpenIGTLinkRemoteCommandWidget::onQueryResponseReceived()
   QString responseGroupBoxTitle="Response received ("+QString(d->command->GetID())+")";
   d->responseGroupBox->setTitle(responseGroupBoxTitle);
   std::string displayedText = d->command->GetResponseMessage() ? d->command->GetResponseMessage() : "";
-  if (d->command->GetResponseXML()==NULL)
+  if (d->command->GetResponseXML() == NULL)
   {
     displayedText = d->command->GetResponseText() ? d->command->GetResponseText() : "";
   }
-  if ( status == vtkSlicerOpenIGTLinkCommand::CommandSuccess)
+  if (status == vtkSlicerOpenIGTLinkCommand::CommandSuccess)
   {
-    d->ResponseTextEdit->setPlainText( QString( displayedText.c_str() ) );
+    d->ResponseTextEdit->setPlainText(QString(displayedText.c_str()));
   }
-  else if ( status == vtkSlicerOpenIGTLinkCommand::CommandWaiting )
+  else if (status == vtkSlicerOpenIGTLinkCommand::CommandWaiting)
   {
-    d->ResponseTextEdit->setPlainText( "Waiting for response..." );
+    d->ResponseTextEdit->setPlainText("Waiting for response...");
   }
-  else if ( status == vtkSlicerOpenIGTLinkCommand::CommandExpired )
+  else if (status == vtkSlicerOpenIGTLinkCommand::CommandExpired)
   {
-    d->ResponseTextEdit->setPlainText( "Command timed out" );
+    d->ResponseTextEdit->setPlainText("Command timed out");
   }
   else 
   {
-    d->ResponseTextEdit->setPlainText( "Command failed.\n"+QString( displayedText.c_str() ) );
+    d->ResponseTextEdit->setPlainText("Command failed.\n"+QString(displayedText.c_str()));
   }
+  std::string fullResponseText = d->command->GetResponseText() ? d->command->GetResponseText() : "";
+  d->FullResponseTextEdit->setPlainText(QString(fullResponseText.c_str()));
 }
 
 //------------------------------------------------------------------------------
